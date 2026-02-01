@@ -1,36 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Hello TensorFlow.js</title>
-
-    <!-- TensorFlow.js CDN (Browser) -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
 </head>
 <body>
-    <h2>Hello TensorFlow.js</h2>
-    <p>Open browser console to see output</p>
-
+    <h2>Check Console for Reshaping</h2>
     <script>
-        // Check TensorFlow.js installation
-        console.log("TensorFlow.js version:", tf.version.tfjs);
-
-        // Create tensors
-        const tensorA = tf.tensor([1, 2, 3]);
-        const tensorB = tf.tensor([4, 5, 6]);
-
-        // Perform addition
-        const tensorC = tf.add(tensorA, tensorB);
-
-        // Print results
-        console.log("Tensor A:");
-        tensorA.print();
-
-        console.log("Tensor B:");
-        tensorB.print();
-
-        console.log("Tensor C (A + B):");
-        tensorC.print();
+        // Start with a 1D vector of 4 elements
+        const original = tf.tensor1d([1, 2, 3, 4]);
+        // Reshape: Turn the 4 elements into a 2x2 matrix
+        const reshaped = original.reshape([2, 2]);
+        // Flatten: Turn the 2x2 matrix back into a 1D vector
+        const flattened = reshaped.flatten();
+        console.log("Original (1D):"); original.print();
+        console.log("Reshaped (2x2):"); reshaped.print();
+        console.log("Flattened (Back to 1D):"); flattened.print();
     </script>
 </body>
 </html>
