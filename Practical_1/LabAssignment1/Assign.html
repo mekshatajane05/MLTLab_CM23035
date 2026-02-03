@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Math Discovery</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #f8f9fa; padding: 20px; }
+        .container { max-width: 700px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        #equation { font-size: 1.5em; font-weight: bold; color: #ff6384; margin: 20px 0; min-height: 1.5em; }
+        .stats { display: flex; justify-content: space-around; background: #f1f3f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        span { font-weight: bold; color: #36a2eb; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Discovery: How AI learns $y = mx + b$</h2>
+    <p>Target Equation: <b>y = 3x + 10</b></p>
+    
+    <div id="equation">AI is calculating...</div>
+
+    <div class="stats">
+        <div>Weight (m): <span id="weight-val">-</span></div>
+        <div>Bias (b): <span id="bias-val">-</span></div>
+    </div>
+
+    <canvas id="discoveryChart"></canvas>
+</div>
+
+<script>
+    async function startDiscovery() {
+        // 1. Generate Synthetic Data
+        const xVals = [], yVals = [];
+        for (let i = 0; i < 20; i++) {
+            xVals.push(i);
+            // y = 3x + 10 + noise
+            yVals.push(3 * i + 10 + (Math.random() * 2 - 1)); 
+        }
+
+        // Normalize
+        const xs = tf.tensor2d(xVals, [20, 1]).div(20);
+        const ys = tf.tensor2d(yVals, [20, 1]).div(100);
+
+        // 2. Build Model
+        const model = tf.sequential();
+        model.add(tf.layers.dense({units: 1, inputShape: [1]}));
+        model.compile({optimizer: tf.train.adam(0.05), loss: 'meanSquaredError'});
+
+        // 3. Train
+        await model.fit(xs, ys, {
+            epochs: 150,
+            callbacks: {
+                onEpochEnd: (epoch, logs) => {
+                    console.log(`Epoch ${epoch}: loss = ${logs.loss.toFixed(4)}`);
+                }
+            }
+        });
+
+        // 4. Extract and Un-normalize
+        const trainedWeight = model.getWeights()[0].dataSync()[0];
+        const trainedBias = model.getWeights()[1].dataSync()[0];
+
+        const finalM = (trainedWeight * 100 / 20).toFixed(2);
+        const finalB = (trainedBias * 100).toFixed(2);
+
+        document.getElementById('weight-val').innerText = finalM;
+        document.getElementById('bias-val').innerText = finalB;
+        document.getElementById('equation').innerText = `AI Equation: y = ${finalM}x + ${finalB}`;
+
+        // 5. Plot results
+        const preds = model.predict(xs).dataSync();
+        const unnormPreds = Array.from(preds).map(p => p * 100);
+
+        new Chart(document.getElementById('discoveryChart'), {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Actual Data Points',
+                    data: xVals.map((x, i) => ({x: x, y: yVals[i]})),
+                    backgroundColor: '#36a2eb'
+                }, {
+                    label: 'AI Learned Line',
+                    type: 'line',
+                    data: xVals.map((x, i) => ({x: x, y: unnormPreds[i]})),
+                    borderColor: '#ff6384',
+                    borderWidth: 3,
+                    pointRadius: 0, // Makes it look more like a smooth line
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    startDiscovery();
+</script>
+</body>
+</html>

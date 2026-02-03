@@ -1,166 +1,188 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<title>Indian Sales Regression Model</title>
-
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
-body { font-family: 'Segoe UI'; margin: 0; display: flex; height: 100vh; background: #f0f2f5; }
-.sidebar { width: 350px; background: white; padding: 25px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
-.main-content { flex-grow: 1; padding: 40px; display: flex; flex-direction: column; align-items: center; }
-.input-group { margin-bottom: 15px; }
-label { font-weight: 600; margin-bottom: 5px; display: block; }
-select, input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; }
-button { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 6px; cursor: pointer; }
-.btn-train { background: #ff9933; color: white; }
-.btn-predict { background: #138808; color: white; }
-#result { margin-top: 20px; padding: 15px; background: #e7f3ff; font-weight: bold; }
-canvas { background: white; border-radius: 12px; max-width: 900px; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indian Sales Regression Model</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; height: 100vh; background: #f0f2f5; }
+        .sidebar { width: 350px; background: white; padding: 25px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); overflow-y: auto; }
+        .main-content { flex-grow: 1; padding: 40px; display: flex; flex-direction: column; align-items: center; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em; color: #444; }
+        select, input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; margin-top: 10px; }
+        .btn-train { background: #ff9933; color: white; } /* Saffron */
+        .btn-predict { background: #138808; color: white; } /* Green */
+        button:hover { opacity: 0.9; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #result { margin-top: 20px; padding: 15px; border-radius: 6px; background: #e7f3ff; color: #0c5460; font-weight: bold; text-align: center; font-size: 1.2em; }
+        canvas { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 900px; width: 100%; }
+        #status { margin-top:10px; font-size: 0.85em; font-weight: bold; }
+    </style>
 </head>
-
 <body>
 
 <div class="sidebar">
-<h2>Model Inputs</h2>
+    <h2 style="color: #000080;">Model Inputs</h2>
+    <div class="input-group">
+        <label>Current Season</label>
+        <select id="season" onchange="updateTrendLine()">
+            <option value="0">Summer (Mar-June)</option>
+            <option value="1">Rainy (July-Oct)</option>
+            <option value="2">Winter (Nov-Feb)</option>
+        </select>
+    </div>
+    <div class="input-group">
+        <label>Temperature (°C)</label>
+        <input type="number" id="temp" value="32">
+    </div>
+    <div class="input-group">
+        <label>Weather Condition</label>
+        <select id="weather" onchange="updateTrendLine()">
+            <option value="0">Clear Sky</option>
+            <option value="1">Overcast/Cloudy</option>
+            <option value="2">Heavy Rain</option>
+        </select>
+    </div>
+    <div class="input-group">
+        <label>Holiday</label>
+        <select id="holiday" onchange="updateTrendLine()">
+            <option value="0">No</option>
+            <option value="1">Yes</option>
+        </select>
+    </div>
 
-<div class="input-group">
-<label>Season</label>
-<select id="season">
-<option value="0">Summer</option>
-<option value="1">Rainy</option>
-<option value="2">Winter</option>
-</select>
-</div>
+    <button class="btn-train" onclick="trainModel()">1. Train Model</button>
+    <button class="btn-predict" id="predictBtn" onclick="predict()" disabled>2. Predict Sales</button>
 
-<div class="input-group">
-<label>Temperature (°C)</label>
-<input type="number" id="temp" value="32">
-</div>
-
-<div class="input-group">
-<label>Weather</label>
-<select id="weather">
-<option value="0">Clear</option>
-<option value="1">Cloudy</option>
-<option value="2">Heavy Rain</option>
-</select>
-</div>
-
-<div class="input-group">
-<label>Holiday</label>
-<select id="holiday">
-<option value="0">No</option>
-<option value="1">Yes</option>
-</select>
-</div>
-
-<button class="btn-train" onclick="trainModel()">Train Model</button>
-<button class="btn-predict" id="predictBtn" onclick="predict()" disabled>Predict</button>
-
-<div id="status">Status: Not trained</div>
-<div id="result">Prediction will appear here</div>
+    <div id="status" style="color: #666;">Status: Model not trained</div>
+    <div id="result">Prediction will appear here</div>
 </div>
 
 <div class="main-content">
-<h3>Sales Trend</h3>
-<canvas id="myChart"></canvas>
+    <h3 style="color: #000080;">Sales Trend Analysis (Multiple Regression)</h3>
+    <canvas id="myChart"></canvas>
+    <p style="color: #777; font-size: 0.9em; margin-top: 15px;">
+        The <b>Orange Line</b> represents the AI's predicted sales trend across temperatures based on your current sidebar settings.
+    </p>
 </div>
 
 <script>
-let model;
-const dataCount = 150;
-
-// Generate synthetic data
-function generateData() {
-    const data = [];
-    for (let i = 0; i < dataCount; i++) {
-        let s = Math.floor(Math.random() * 3);
-        let t = s === 0 ? 35 + Math.random()*10 : s === 1 ? 25 + Math.random()*10 : 15 + Math.random()*10;
-        let w = Math.floor(Math.random() * 3);
-        let h = Math.random() > 0.8 ? 1 : 0;
-
-        let sales = (s === 0 ? t*2 : t*1.2) + h*40 - w*10 + 50;
-        data.push({ x: [s, t, w, h], y: sales });
-    }
-    return data;
-}
-
-const rawData = generateData();
-
-// Chart
-const chart = new Chart(document.getElementById("myChart"), {
-    type: "scatter",
-    data: {
-        datasets: [{
-            label: "Historical Data",
-            data: rawData.map(d => ({ x: d.x[1], y: d.y })),
-            backgroundColor: "rgba(0,0,128,0.3)"
-        },{
-            label: "Regression Line",
-            type: "line",
-            data: [],
-            borderColor: "#ff9933",
-            borderWidth: 3,
-            pointRadius: 0
-        }]
-    },
-    options: {
-        scales: {
-            x: { title: { display: true, text: "Temperature (°C)" }},
-            y: { title: { display: true, text: "Sales" }}
-        }
-    }
-});
-
-async function trainModel() {
-    document.getElementById("status").innerText = "Training...";
+    let model;
+    let chart;
+    const dataCount = 150;
     
-    model = tf.sequential();
-    model.add(tf.layers.dense({ units: 1, inputShape: [4] }));
-    model.compile({ optimizer: tf.train.adam(0.1), loss: "meanSquaredError" });
+    // Generate synthetic data reflecting Indian market trends
+    const generateData = () => {
+        const points = [];
+        for(let i=0; i<dataCount; i++) {
+            let s = Math.floor(Math.random() * 3); // 0:Summer, 1:Rainy, 2:Winter
+            let t = s === 0 ? 30 + Math.random()*15 : (s === 1 ? 22 + Math.random()*10 : 10 + Math.random()*15);
+            let w = Math.floor(Math.random() * 3); // 0:Clear, 1:Cloudy, 2:Rain
+            let h = Math.random() > 0.8 ? 1 : 0;   // 20% Holiday chance
 
-    const xs = tf.tensor2d(rawData.map(d => d.x));
-    const ys = tf.tensor2d(rawData.map(d => d.y), [dataCount, 1]);
+            // Logic: Sales increase with Temp in Summer (drinks) and decrease with Rain
+            let sales = (s === 0 ? t*2.5 : t*1.5) + (h * 50) - (w * 15) + 40 + (Math.random()*15);
+            points.push({ x: [s, t, w, h], y: sales });
+        }
+        return points;
+    };
 
-    await model.fit(xs, ys, { epochs: 100 });
+    const rawData = generateData();
 
-    document.getElementById("status").innerText = "Training Complete";
-    document.getElementById("predictBtn").disabled = false;
-    updateTrendLine();
-}
+    // Initialize Chart.js
+    const ctx = document.getElementById('myChart').getContext('2d');
+    chart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Historical Data (Temp vs Sales)',
+                data: rawData.map(d => ({ x: d.x[1], y: d.y })),
+                backgroundColor: 'rgba(0, 0, 128, 0.2)',
+                pointRadius: 4
+            }, {
+                label: 'AI Predicted Trend',
+                type: 'line',
+                borderColor: '#ff9933',
+                borderWidth: 3,
+                data: [],
+                fill: false,
+                pointRadius: 0,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: { title: { display: true, text: 'Temperature (°C)' } },
+                y: { title: { display: true, text: 'Sales Units' }, beginAtZero: true }
+            }
+        }
+    });
 
-function predict() {
-    const s = +season.value;
-    const t = +temp.value;
-    const w = +weather.value;
-    const h = +holiday.value;
+    async function trainModel() {
+        const statusEl = document.getElementById('status');
+        statusEl.innerText = "Status: Training model... Please wait.";
+        statusEl.style.color = "#ff9933";
+        
+        // Build a multi-layer model for better pattern recognition
+        model = tf.sequential();
+        model.add(tf.layers.dense({ units: 10, inputShape: [4], activation: 'relu' }));
+        model.add(tf.layers.dense({ units: 1 }));
+        
+        model.compile({ optimizer: tf.train.adam(0.02), loss: 'meanSquaredError' });
 
-    const output = tf.tidy(() =>
-        model.predict(tf.tensor2d([[s, t, w, h]])).dataSync()[0]
-    );
+        const xs = tf.tensor2d(rawData.map(d => d.x));
+        const ys = tf.tensor2d(rawData.map(d => d.y), [dataCount, 1]);
 
-    result.innerText = `Predicted Sales: ₹${Math.round(output)}`;
-    updateTrendLine();
-}
+        await model.fit(xs, ys, { epochs: 100 });
+        
+        statusEl.innerText = "Status: Training Complete!";
+        statusEl.style.color = "#138808";
+        document.getElementById('predictBtn').disabled = false;
+        updateTrendLine();
+    }
 
-function updateTrendLine() {
-    const s = +season.value;
-    const w = +weather.value;
-    const h = +holiday.value;
+    async function predict() {
+        const s = parseFloat(document.getElementById('season').value);
+        const t = parseFloat(document.getElementById('temp').value);
+        const w = parseFloat(document.getElementById('weather').value);
+        const h = parseFloat(document.getElementById('holiday').value);
 
-    const temps = [10,20,30,40,50];
-    chart.data.datasets[1].data = temps.map(temp => ({
-        x: temp,
-        y: tf.tidy(() =>
-            model.predict(tf.tensor2d([[s,temp,w,h]])).dataSync()[0]
-        )
-    }));
-    chart.update();
-}
+        // Use tf.tidy to prevent browser memory leaks
+        const result = tf.tidy(() => {
+            const prediction = model.predict(tf.tensor2d([[s, t, w, h]]));
+            return prediction.dataSync();
+        });
+        
+        document.getElementById('result').innerText = `Predicted Sales: ₹${Math.round(result[0] * 10)}`;
+        updateTrendLine();
+    }
+
+    function updateTrendLine() {
+        if (!model) return;
+
+        const s = parseFloat(document.getElementById('season').value);
+        const w = parseFloat(document.getElementById('weather').value);
+        const h = parseFloat(document.getElementById('holiday').value);
+
+        const temps = [10, 20, 30, 40, 50];
+        
+        const linePoints = tf.tidy(() => {
+            return temps.map(temp => {
+                const p = model.predict(tf.tensor2d([[s, temp, w, h]]));
+                return { x: temp, y: p.dataSync()[0] };
+            });
+        });
+
+        chart.data.datasets[1].data = linePoints;
+        chart.update();
+    }
 </script>
 
 </body>
