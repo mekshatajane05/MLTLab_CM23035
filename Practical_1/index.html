@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Indian Sales Regression Model</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body { font-family: 'Segoe UI'; margin: 0; display: flex; height: 100vh; background: #f0f2f5; }
+.sidebar { width: 350px; background: white; padding: 25px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
+.main-content { flex-grow: 1; padding: 40px; display: flex; flex-direction: column; align-items: center; }
+.input-group { margin-bottom: 15px; }
+label { font-weight: 600; margin-bottom: 5px; display: block; }
+select, input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; }
+button { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 6px; cursor: pointer; }
+.btn-train { background: #ff9933; color: white; }
+.btn-predict { background: #138808; color: white; }
+#result { margin-top: 20px; padding: 15px; background: #e7f3ff; font-weight: bold; }
+canvas { background: white; border-radius: 12px; max-width: 900px; }
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+<h2>Model Inputs</h2>
+
+<div class="input-group">
+<label>Season</label>
+<select id="season">
+<option value="0">Summer</option>
+<option value="1">Rainy</option>
+<option value="2">Winter</option>
+</select>
+</div>
+
+<div class="input-group">
+<label>Temperature (°C)</label>
+<input type="number" id="temp" value="32">
+</div>
+
+<div class="input-group">
+<label>Weather</label>
+<select id="weather">
+<option value="0">Clear</option>
+<option value="1">Cloudy</option>
+<option value="2">Heavy Rain</option>
+</select>
+</div>
+
+<div class="input-group">
+<label>Holiday</label>
+<select id="holiday">
+<option value="0">No</option>
+<option value="1">Yes</option>
+</select>
+</div>
+
+<button class="btn-train" onclick="trainModel()">Train Model</button>
+<button class="btn-predict" id="predictBtn" onclick="predict()" disabled>Predict</button>
+
+<div id="status">Status: Not trained</div>
+<div id="result">Prediction will appear here</div>
+</div>
+
+<div class="main-content">
+<h3>Sales Trend</h3>
+<canvas id="myChart"></canvas>
+</div>
+
+<script>
+let model;
+const dataCount = 150;
+
+// Generate synthetic data
+function generateData() {
+    const data = [];
+    for (let i = 0; i < dataCount; i++) {
+        let s = Math.floor(Math.random() * 3);
+        let t = s === 0 ? 35 + Math.random()*10 : s === 1 ? 25 + Math.random()*10 : 15 + Math.random()*10;
+        let w = Math.floor(Math.random() * 3);
+        let h = Math.random() > 0.8 ? 1 : 0;
+
+        let sales = (s === 0 ? t*2 : t*1.2) + h*40 - w*10 + 50;
+        data.push({ x: [s, t, w, h], y: sales });
+    }
+    return data;
+}
+
+const rawData = generateData();
+
+// Chart
+const chart = new Chart(document.getElementById("myChart"), {
+    type: "scatter",
+    data: {
+        datasets: [{
+            label: "Historical Data",
+            data: rawData.map(d => ({ x: d.x[1], y: d.y })),
+            backgroundColor: "rgba(0,0,128,0.3)"
+        },{
+            label: "Regression Line",
+            type: "line",
+            data: [],
+            borderColor: "#ff9933",
+            borderWidth: 3,
+            pointRadius: 0
+        }]
+    },
+    options: {
+        scales: {
+            x: { title: { display: true, text: "Temperature (°C)" }},
+            y: { title: { display: true, text: "Sales" }}
+        }
+    }
+});
+
+async function trainModel() {
+    document.getElementById("status").innerText = "Training...";
+    
+    model = tf.sequential();
+    model.add(tf.layers.dense({ units: 1, inputShape: [4] }));
+    model.compile({ optimizer: tf.train.adam(0.1), loss: "meanSquaredError" });
+
+    const xs = tf.tensor2d(rawData.map(d => d.x));
+    const ys = tf.tensor2d(rawData.map(d => d.y), [dataCount, 1]);
+
+    await model.fit(xs, ys, { epochs: 100 });
+
+    document.getElementById("status").innerText = "Training Complete";
+    document.getElementById("predictBtn").disabled = false;
+    updateTrendLine();
+}
+
+function predict() {
+    const s = +season.value;
+    const t = +temp.value;
+    const w = +weather.value;
+    const h = +holiday.value;
+
+    const output = tf.tidy(() =>
+        model.predict(tf.tensor2d([[s, t, w, h]])).dataSync()[0]
+    );
+
+    result.innerText = `Predicted Sales: ₹${Math.round(output)}`;
+    updateTrendLine();
+}
+
+function updateTrendLine() {
+    const s = +season.value;
+    const w = +weather.value;
+    const h = +holiday.value;
+
+    const temps = [10,20,30,40,50];
+    chart.data.datasets[1].data = temps.map(temp => ({
+        x: temp,
+        y: tf.tidy(() =>
+            model.predict(tf.tensor2d([[s,temp,w,h]])).dataSync()[0]
+        )
+    }));
+    chart.update();
+}
+</script>
+
+</body>
+</html>
