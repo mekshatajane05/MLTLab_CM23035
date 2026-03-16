@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ObjectSnap 🔍 — Cute AI Object Identifier</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet"/>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<link rel="stylesheet" href="style.css"/>
+</head>
+
+<body>
+
+<div class="blobs" aria-hidden="true">
+<div class="bl bl1"></div>
+<div class="bl bl2"></div>
+<div class="bl bl3"></div>
+<div class="bl bl4"></div>
+<div class="bl bl5"></div>
+</div>
+
+<div class="emoji-rain" aria-hidden="true">
+<span>🔍</span><span>⭐</span><span>🧸</span><span>✨</span>
+<span>📦</span><span>💫</span><span>🌟</span><span>🎀</span>
+<span>🔮</span><span>🎯</span>
+</div>
+
+<div class="page">
+
+<header>
+<div class="brand">
+<div class="brand-orb">
+<span class="orb-icon">🔍</span>
+<div class="orb-ring r1"></div>
+<div class="orb-ring r2"></div>
+</div>
+<div class="brand-words">
+<h1>ObjectSnap</h1>
+<p>cute AI object identifier · powered by tensorflow.js ✨</p>
+</div>
+</div>
+
+<div class="header-right">
+<button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙</button>
+
+<div class="status-pill" id="status-pill">
+<span class="pill-dot" id="pill-dot"></span>
+<span id="pill-txt">loading…</span>
+</div>
+</div>
+</header>
+
+<!-- Load Card -->
+<div class="load-card" id="load-card">
+
+<div class="load-scene">
+<div class="road-wrap">
+<div class="road">
+<div class="road-line l1"></div>
+<div class="road-line l2"></div>
+<div class="road-line l3"></div>
+</div>
+
+<span class="road-car" id="road-car">🔍</span>
+
+<div class="road-trees">
+<span>📦</span>
+<span>🧸</span>
+<span>🌿</span>
+</div>
+
+</div>
+</div>
+
+<div class="load-info">
+
+<h3 id="load-title">Warming up the scanner… 🔧</h3>
+<p id="load-sub">Loading pretrained model · No training needed · Runs in your browser</p>
+
+<div class="load-bars">
+
+<div class="lbar">
+<span class="lb-name">MobileNet V1</span>
+<div class="lb-track">
+<div class="lb-fill lf-mn" id="mn-fill"></div>
+</div>
+<span class="lb-pct" id="mn-pct">0%</span>
+</div>
+
+<div class="lbar">
+<span class="lb-name">Cache Check</span>
+<div class="lb-track">
+<div class="lb-fill lf-cs" id="cs-fill"></div>
+</div>
+<span class="lb-pct" id="cs-pct">0%</span>
+</div>
+
+</div>
+</div>
+</div>
+
+
+<!-- Tabs -->
+<div class="tab-row">
+<button class="tab active">📁 Upload Photo</button>
+</div>
+
+
+<!-- Upload Panel -->
+<div class="panel active" id="panel-upload">
+
+<div class="dropzone" id="drop-zone"
+ondragover="onDragOver(event)"
+ondragleave="onDragLeave(event)"
+ondrop="onDrop(event)"
+onclick="document.getElementById('file-input').click()">
+
+<div class="dz-car-anim">
+<span class="dz-car">🔮</span>
+<div class="dz-shadow"></div>
+</div>
+
+<h3 class="dz-title">Drop any object photo here!</h3>
+<p class="dz-sub">
+animals · food · electronics · furniture · nature · sports · and more!
+</p>
+
+<div class="dz-formats">
+<span>JPG</span>
+<span>PNG</span>
+<span>WEBP</span>
+</div>
+
+<button class="btn-browse"
+onclick="event.stopPropagation();document.getElementById('file-input').click()">
+📂 Browse Files
+</button>
+
+</div>
+
+<inputype="file" id="file-input" accept="image/*" onchange="onFileSelect(event)"/>
+
+
+<div class="action-strip">
+
+<button class="btn-classify" id="classify-btn" onclick="classifyImage()" disabled>
+<span class="btn-spin" id="cls-spin"></span>
+<span id="cls-txt">🔍 Identify Object!</span>
+</button>
+
+<button class="btn-reset" onclick="resetUpload()">🗑 Reset</button>
+
+<div class="badges-wrap" id="det-badges"></div>
+
+</div>
+
+
+<div class="results-grid" id="results-grid" style="display:none">
+
+<div class="card img-card">
+<div class="card-tag">📸 scan target</div>
+<div class="img-wrap">
+<img id="preview-img"/>
+<canvas id="bbox-canvas"></canvas>
+<div class="scan-beam" id="scan-beam"></div>
+</div>
+</div>
+
+<div class="card id-card">
+<div class="card-tag">🏷️ object identity</div>
+<div id="id-body"></div>
+</div>
+
+<div class="card chart-card">
+<div class="card-tag">📊 confidence chart</div>
+<div class="chart-area">
+<canvas id="upload-chart"></canvas>
+</div>
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
