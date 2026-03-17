@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ObjectSnap 🔍 — Cute AI Object Identifier</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet"/>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<link rel="stylesheet" href="style.css"/>
+</head>
+
+<body>
+
+<div class="blobs" aria-hidden="true">
+<div class="bl bl1"></div>
+<div class="bl bl2"></div>
+<div class="bl bl3"></div>
+<div class="bl bl4"></div>
+<div class="bl bl5"></div>
+</div>
+
+<div class="emoji-rain" aria-hidden="true">
+<span>🔍</span><span>⭐</span><span>🧸</span><span>✨</span>
+<span>📦</span><span>💫</span><span>🌟</span><span>🎀</span>
+<span>🔮</span><span>🎯</span>
+</div>
+
+<div class="page">
+
+<header>
+<div class="brand">
+<div class="brand-orb">
+<span class="orb-icon">🔍</span>
+<div class="orb-ring r1"></div>
+<div class="orb-ring r2"></div>
+</div>
+
+<div class="brand-words">
+<h1>ObjectSnap</h1>
+<p>cute AI object identifier · powered by tensorflow.js ✨</p>
+</div>
+</div>
+
+<div class="header-right">
+<button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙</button>
+
+<div class="status-pill" id="status-pill">
+<span class="pill-dot" id="pill-dot"></span>
+<span id="pill-txt">loading…</span>
+</div>
+</div>
+</header>
+
+
+<div class="load-card" id="load-card">
+
+<div class="load-scene">
+<div class="road-wrap">
+<div class="road">
+<div class="road-line l1"></div>
+<div class="road-line l2"></div>
+<div class="road-line l3"></div>
+</div>
+
+<span class="road-car" id="road-car">🔍</span>
+
+<div class="road-trees">
+<span>📦</span>
+<span>🧸</span>
+<span>🌿</span>
+</div>
+</div>
+</div>
+
+<div class="load-info">
+<h3 id="load-title">Warming up the scanner… 🔧</h3>
+<p id="load-sub">Loading pretrained model · Runs directly in your browser</p>
+
+<div class="load-bars">
+
+<div class="lbar">
+<span class="lb-name">MobileNet V1</span>
+<div class="lb-track">
+<div class="lb-fill lf-mn" id="mn-fill"></div>
+</div>
+<span class="lb-pct" id="mn-pct">0%</span>
+</div>
+
+<div class="lbar">
+<span class="lb-name">Cache Check</span>
+<div class="lb-track">
+<div class="lb-fill lf-cs" id="cs-fill"></div>
+</div>
+<span class="lb-pct" id="cs-pct">0%</span>
+</div>
+
+</div>
+</div>
+</div>
+
+
+<div class="tab-row">
+<button class="tab active">📷 Live Camera</button>
+</div>
+
+
+<div class="panel active" id="panel-webcam">
+
+<div class="cam-layout">
+
+<div class="card cam-card">
+
+<div class="card-tag">
+📷 live feed
+<div class="live-pill" id="live-pill" style="display:none">
+<span class="ldot"></span>LIVE
+</div>
+
+<span class="fps-chip" id="fps-chip" style="display:none"></span>
+</div>
+
+<div class="cam-wrap">
+
+<video id="webcam-video" autoplay muted playsinline></video>
+
+<canvas id="cam-bbox-canvas"></canvas>
+
+<div class="cam-placeholder" id="cam-ph">
+<span>📷</span>
+<p>camera offline</p>
+</div>
+
+<div class="cam-scanbar" id="cam-scanbar"></div>
+
+<button class="btn-snap" id="btn-snap" onclick="takeSnapshot()">📸</button>
+
+</div>
+
+<canvas id="webcam-canvas" width="224" height="224" style="display:none"></canvas>
+
+<div class="cam-btns">
+<button class="btn-start" onclick="startWebcam()">▶ Start Camera</button>
+<button class="btn-stop" onclick="stopWebcam()">■ Stop</button>
+</div>
+
+<p class="cam-hint">tap 📸 to snap & identify!</p>
+
+</div>
+
+
+
+<div class="cam-right">
+
+<div class="card live-id-card">
+<div class="card-tag">🏷️ live identification</div>
+
+<div id="cam-id-body">
+<div class="cam-empty">
+<span>🔍</span>
+<br>
+start camera to
+<br>
+identify objects!
+</div>
+</div>
+</div>
+
+
+<div class="card chart-card" style="margin-top:14px">
+
+<div class="card-tag">📊 live confidence</div>
+
+<div class="chart-area" style="height:180px">
+<canvas id="cam-chart"></canvas>
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div class="snap-modal" id="snap-modal">
+
+<div class="snap-bg" onclick="closeSnap()"></div>
+
+<div class="snap-box">
+
+<div class="snap-head">
+<span>📸 snapshot!</span>
+<button onclick="closeSnap()">✕</button>
+</div>
+
+<img id="snap-img" alt="snapshot"/>
+
+<div class="snap-btns">
+<button class="snap-discard" onclick="closeSnap()">Discard</button>
+<button class="snap-analyze" onclick="analyzeSnapshot()">🔍 Identify This!</button>
+</div>
+
+</div>
+</div>
+
+
+<div class="toast" id="toast"></div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
+```
