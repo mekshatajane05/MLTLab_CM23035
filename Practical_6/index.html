@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PosiPose 🌸 — Pose Detection</title>
+
+  <!-- Preconnect to CDNs for faster model loading -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net"/>
+  <link rel="preconnect" href="https://tfhub.dev"/>
+  <link rel="preconnect" href="https://storage.googleapis.com"/>
+
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.20.0/dist/tf-core.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.20.0/dist/tf-converter.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.20.0/dist/tf-backend-webgl.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+</head>
+<body>
+
+<!-- Floating deco blobs -->
+<div class="blob blob-a"></div>
+<div class="blob blob-b"></div>
+<div class="blob blob-c"></div>
+
+<!-- Confetti container -->
+<div id="confetti-box"></div>
+
+<div class="app">
+
+  <!-- ══ HEADER ══ -->
+  <header class="header">
+    <div class="logo">
+      <span class="logo-icon">🌸</span>
+      <div class="logo-text">
+        <span class="logo-name">PosiPose</span>
+        <span class="logo-sub">Pose Detection · ML Lab Practical 6</span>
+      </div>
+    </div>
+
+    <!-- Current pose hero pill -->
+    <div class="pose-hero" id="pose-hero">
+      <div class="ph-emoji" id="ph-emoji">✨</div>
+      <div class="ph-body">
+        <div class="ph-name" id="ph-name">Waiting…</div>
+        <div class="ph-mood" id="ph-mood">start camera to begin</div>
+      </div>
+      <div class="ph-streak" id="ph-streak" title="Current streak">
+        <span class="streak-num" id="streak-num">0</span>
+        <span class="streak-lbl">streak</span>
+      </div>
+    </div>
+
+    <!-- Mini stats row -->
+    <div class="mini-stats">
+      <div class="mstat" id="mstat-fps">
+        <span class="mstat-val" id="fps-val">--</span>
+        <span class="mstat-lbl">fps</span>
+      </div>
+      <div class="mstat" id="mstat-kp">
+        <span class="mstat-val" id="kp-val">0/17</span>
+        <span class="mstat-lbl">joints</span>
+      </div>
+      <div class="mstat" id="mstat-conf">
+        <span class="mstat-val" id="conf-chip">--%</span>
+        <span class="mstat-lbl">conf</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ MAIN BODY ══ -->
+  <div class="main-grid">
+
+    <!-- LEFT PANEL -->
+    <aside class="panel panel-left">
+
+      <!-- Controls card -->
+      <div class="card" id="card-ctrl">
+        <div class="card-title">
+          <span class="ct-icon">🎮</span> Controls
+        </div>
+        <div class="status-bubble" id="status-bubble">
+          <span class="sb-dot" id="sb-dot"></span>
+          <span id="status-text">Loading model…</span>
+        </div>
+        <div class="ctrl-btns">
+          <button class="pill-btn btn-go" id="btn-start" disabled>
+            ▶ &nbsp;Start
+          </button>
+          <button class="pill-btn btn-stop" id="btn-stop" disabled>
+            ■ &nbsp;Stop
+          </button>
+        </div>
+      </div>
+
+      <!-- Settings card -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon">⚙️</span> Settings</div>
+
+        <div class="setting-field">
+          <div class="sf-label">Confidence <span class="sf-val" id="conf-val">0.35</span></div>
+          <input type="range" class="cute-range" id="conf-slider" min="0.1" max="0.9" step="0.05" value="0.35"/>
+        </div>
+
+        <div class="setting-field">
+          <div class="sf-label">Point size <span class="sf-val" id="pt-val">5</span></div>
+          <input type="range" class="cute-range" id="pt-slider" min="3" max="14" step="1" value="5"/>
+        </div>
+
+        <div class="toggles-grid">
+          <label class="tog-label">
+            <div class="tog-wrap"><input type="checkbox" id="tog-mirror" checked/><span class="tog-track"></span></div>
+            <span>Mirror</span>
+          </label>
+          <label class="tog-label">
+            <div class="tog-wrap"><input type="checkbox" id="tog-skel" checked/><span class="tog-track"></span></div>
+            <span>Skeleton</span>
+          </label>
+          <label class="tog-label">
+            <div class="tog-wrap"><input type="checkbox" id="tog-labels"/><span class="tog-track"></span></div>
+            <span>Labels</span>
+          </label>
+          <label class="tog-label">
+            <div class="tog-wrap"><input type="checkbox" id="tog-glow" checked/><span class="tog-track"></span></div>
+            <span>Glow</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Mood card -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon">💭</span> Pose Mood</div>
+        <div class="mood-grid" id="mood-grid">
+          <!-- filled by JS -->
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- VIDEO CENTER -->
+    <main class="video-center">
+      <div class="video-card" id="video-card">
+
+        <!-- Idle overlay -->
+        <div class="idle-cover" id="idle-cover">
+          <div class="idle-art">
+            <div class="idle-figure">🧍</div>
+            <div class="idle-rings">
+              <div class="ring ring1"></div>
+              <div class="ring ring2"></div>
+              <div class="ring ring3"></div>
+            </div>
+          </div>
+          <p class="idle-tip">Stand <strong>2–3 metres</strong> from camera<br>so your full body is visible 🌟</p>
+        </div>
+
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="canvas"></canvas>
+
+        <!-- Corner deco -->
+        <span class="vc vc-tl">✦</span>
+        <span class="vc vc-tr">✦</span>
+        <span class="vc vc-bl">✦</span>
+        <span class="vc vc-br">✦</span>
+
+        <!-- Live pill overlay -->
+        <div class="live-pill" id="live-pill">
+          <span class="lp-dot"></span> LIVE
+        </div>
+      </div>
+
+      <!-- Pose confidence bar -->
+      <div class="conf-track-wrap">
+        <div class="conf-track-label">Detection confidence</div>
+        <div class="conf-track">
+          <div class="conf-fill" id="conf-fill"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT PANEL -->
+    <aside class="panel panel-right">
+
+      <!-- Pose counts card -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon">📊</span> Pose Stats</div>
+        <div class="pose-stat-list" id="pose-stat-list"></div>
+      </div>
+
+      <!-- History card -->
+      <div class="card">
+        <div class="card-title">
+          <span class="ct-icon">📜</span> History
+          <button class="tiny-btn" id="btn-clear">clear</button>
+        </div>
+        <div class="hist-scroll" id="hist-scroll">
+          <div class="hist-empty">no poses yet 🌱</div>
+        </div>
+      </div>
+
+      <!-- Keypoints card -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon">🔵</span> Joints</div>
+        <div class="kp-bubbles" id="kp-bubbles"></div>
+      </div>
+
+    </aside>
+  </div>
+
+  <!-- ══ FOOTER ══ -->
+  <footer class="footer">
+    <span>🌸 PosiPose</span>
+    <span>·</span>
+    <span>MoveNet Lightning · TF.js v4.20 · WebGL</span>
+    <span>·</span>
+    <span>100% on-device · no data sent 🔒</span>
+  </footer>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
