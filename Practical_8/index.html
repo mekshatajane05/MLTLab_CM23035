@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Practical 8 — Gesture Classifier</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"/>
+
+<!-- TensorFlow.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@1.2.4/dist/knn-classifier.min.js"></script>
+
+<style>
+/* ══════════════════════════════════════════════════════
+   THEME VARIABLES
+══════════════════════════════════════════════════════ */
+:root {
+  --bg:        #030712;
+  --surface:   #0a0f1e;
+  --surface2:  #0f1729;
+  --border:    #1a3050;
+  --glow:      #00ff88;
+  --glow2:     #00ccff;
+  --glow3:     #ff4466;
+  --text:      #c8d8e8;
+  --dim:       #3a5068;
+  --success:   #00ff88;
+  --warn:      #ffaa00;
+  --danger:    #ff4466;
+  --mono:      'Share Tech Mono', monospace;
+  --head:      'Rajdhani', sans-serif;
+  --scan-speed: 3s;
+}
+
+:root.light {
+  --bg:       #f5f7fa;
+  --surface:  #ffffff;
+  --surface2: #eef2f7;
+  --border:   #c5d5e8;
+  --glow:     #007744;
+  --glow2:    #005599;
+  --glow3:    #cc2244;
+  --text:     #1a2535;
+  --dim:      #7a90a8;
+  --success:  #007744;
+  --warn:     #b07700;
+  --danger:   #cc2244;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { transition: all .3s; }
+
+body {
+  font-family: var(--mono);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background .3s, color .3s;
+}
+
+/* ── Scanline overlay (dark only) ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,255,136,.015) 2px,
+    rgba(0,255,136,.015) 4px
+  );
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 1;
+  transition: opacity .3s;
+}
+:root.light body::before { opacity: 0; }
+
+/* ── Grid bg lines ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,255,136,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity .3s;
+}
+:root.light body::after { opacity: 0.3; }
+
+/* ══════════════════════════════════════════════════════
+   LAYOUT
+══════════════════════════════════════════════════════ */
+.shell {
+  position: relative;
+  z-index: 1;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+}
+
+/* ── Top bar ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.logo-tag {
+  font-family: var(--head);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--glow);
+  letter-spacing: .08em;
+  text-shadow: 0 0 16px var(--glow);
+  transition: color .3s, text-shadow .3s;
+}
+:root.light .logo-tag { text-shadow: none; }
+
+.logo-sub {
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: .15em;
+}
+
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+
+/* ── Theme toggle ── */
+.theme-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  letter-spacing: .1em;
+  transition: all .3s;
+}
+.theme-btn:hover { border-color: var(--glow); color: var(--glow); }
+
+.tswitch {
+  width: 30px; height: 16px;
+  background: var(--dim);
+  border-radius: 8px;
+  position: relative;
+  transition: background .3s;
+}
+:root.light .tswitch { background: var(--glow2); }
+.tswitch::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform .3s;
+}
+:root.light .tswitch::after { transform: translateX(14px); }
+
+/* ── Status pill ── */
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: .1em;
+  color: var(--dim);
+}
+.spulse {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+  animation: blink .8s infinite;
+}
+.spulse.on  { background: var(--success); animation: blink 2s infinite; }
+.spulse.err { background: var(--danger); animation: none; }
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:.2} }
+
+/* ══════════════════════════════════════════════════════
+   MAIN GRID
+══════════════════════════════════════════════════════ */
+.grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 16px;
+}
+@media(max-width:760px){ .grid{ grid-template-columns:1fr; } }
+
+/* ── Panel ── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 18px;
+  position: relative;
+  transition: background .3s, border-color .3s;
+}
+
+/* Corner decorations */
+.panel::before, .panel::after {
+  content: '';
+  position: absolute;
+  width: 10px; height: 10px;
+  border-color: var(--glow);
+  border-style: solid;
+  border-width: 0;
+  transition: border-color .3s;
+}
+.panel::before { top: -1px; left: -1px; border-top-width: 2px; border-left-width: 2px; }
+.panel::after  { bottom: -1px; right: -1px; border-bottom-width: 2px; border-right-width: 2px; }
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  letter-spacing: .15em;
+  color: var(--glow2);
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  transition: color .3s, border-color .3s;
+}
+.panel-header .ph-icon { font-size: 14px; }
+.ph-line { flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); }
+
+/* ══════════════════════════════════════════════════════
+   CAMERA
+══════════════════════════════════════════════════════ */
+.cam-wrap {
+  position: relative;
+  aspect-ratio: 4/3;
+  background: #000;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+video, #overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+#overlay { pointer-events: none; }
+
+/* Animated scan line on camera */
+.scan-line {
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--glow), transparent);
+  opacity: .6;
+  animation: scan var(--scan-speed) linear infinite;
+  pointer-events: none;
+  z-index: 5;
+}
+@keyframes scan {
+  0%  { top: -2px; }
+  100%{ top: 100%; }
+}
+:root.light .scan-line { opacity: .3; }
+
+/* Corner brackets on camera */
+.cbracket {
+  position: absolute;
+  width: 20px; height: 20px;
+  border-color: var(--glow);
+  border-style: solid;
+  border-width: 0;
+  z-index: 6;
+  transition: border-color .3s;
+}
+.cbracket.tl { top: 8px; left: 8px; border-top-width: 2px; border-left-width: 2px; }
+.cbracket.tr { top: 8px; right: 8px; border-top-width: 2px; border-right-width: 2px; }
+.cbracket.bl { bottom: 8px; left: 8px; border-bottom-width: 2px; border-left-width: 2px; }
+.cbracket.br { bottom: 8px; right: 8px; border-bottom-width: 2px; border-right-width: 2px; }
+
+.cam-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: .12em;
+}
+.cam-placeholder .big-icon { font-size: 40px; filter: grayscale(1) opacity(.3); }
+
+/* ── Button row ── */
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+.btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .1em;
+  border: 1px solid;
+  border-radius: 2px;
+  padding: 8px 14px;
+  cursor: pointer;
+  background: transparent;
+  transition: all .2s;
+  text-transform: uppercase;
+}
+.btn:disabled { opacity: .3; cursor: not-allowed; }
+
+.btn-g  { border-color: var(--glow);  color: var(--glow);  }
+.btn-g:hover:not(:disabled)  { background: var(--glow);  color: #000; box-shadow: 0 0 12px var(--glow); }
+:root.light .btn-g:hover:not(:disabled) { box-shadow: none; }
+
+.btn-b  { border-color: var(--glow2); color: var(--glow2); }
+.btn-b:hover:not(:disabled)  { background: var(--glow2); color: #000; box-shadow: 0 0 12px var(--glow2); }
+:root.light .btn-b:hover:not(:disabled) { box-shadow: none; }
+
+.btn-r  { border-color: var(--danger); color: var(--danger); }
+.btn-r:hover:not(:disabled)  { background: var(--danger); color: #fff; }
+
+.btn-dim { border-color: var(--dim); color: var(--dim); }
+.btn-dim:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+
+/* ══════════════════════════════════════════════════════
+   GESTURE CARDS
+══════════════════════════════════════════════════════ */
+.gesture-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.g-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  transition: border-color .2s, background .3s;
+  cursor: default;
+}
+.g-card:hover { border-color: var(--glow2); }
+
+.g-emoji { font-size: 20px; line-height: 1; }
+
+.g-info { min-width: 0; }
+.g-name { font-family: var(--head); font-weight: 700; font-size: 14px; color: var(--text); letter-spacing: .04em; }
+.g-bar-track { height: 3px; background: var(--border); border-radius: 2px; margin-top: 5px; overflow: hidden; }
+.g-bar-fill  { height: 100%; border-radius: 2px; transition: width .4s; }
+
+.g-count {
+  font-size: 11px;
+  color: var(--dim);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ── Capture controls ── */
+.capture-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+select.g-select {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 8px 10px;
+  border-radius: 2px;
+  letter-spacing: .06em;
+  outline: none;
+  transition: background .3s, color .3s, border-color .3s;
+}
+select.g-select:focus { border-color: var(--glow2); }
+
+/* ══════════════════════════════════════════════════════
+   PREDICTION PANEL
+══════════════════════════════════════════════════════ */
+.pred-empty {
+  color: var(--dim);
+  font-size: 12px;
+  text-align: center;
+  padding: 30px 0;
+  letter-spacing: .08em;
+  line-height: 2;
+}
+
+.pred-result {
+  text-align: center;
+  padding: 10px 0 16px;
+}
+
+.pred-emoji-big { font-size: 54px; line-height: 1; }
+
+.pred-name {
+  font-family: var(--head);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: .08em;
+  margin-top: 8px;
+  transition: color .3s;
+}
+
+.pred-conf-text {
+  font-size: 12px;
+  color: var(--dim);
+  margin-top: 4px;
+}
+
+.conf-bar-wrap { margin-top: 10px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.conf-bar-fill { height: 100%; border-radius: 2px; transition: width .3s, background .3s; }
+
+/* Probability breakdown */
+.prob-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+
+.prob-item {
+  display: grid;
+  grid-template-columns: 28px 1fr 46px;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+.prob-emoji { text-align: center; font-size: 14px; }
+.prob-track { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.prob-fill  { height: 100%; border-radius: 3px; transition: width .3s; }
+.prob-pct   { font-size: 11px; color: var(--dim); text-align: right; }
+
+/* ══════════════════════════════════════════════════════
+   TERMINAL LOG
+══════════════════════════════════════════════════════ */
+.term {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 10px 14px;
+  height: 110px;
+  overflow-y: auto;
+  font-size: 11px;
+  line-height: 1.8;
+  transition: background .3s;
+  margin-top: 0;
+}
+.term::-webkit-scrollbar { width: 4px; }
+.term::-webkit-scrollbar-track { background: transparent; }
+.term::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.t { color: var(--dim); }
+.t.i { color: var(--glow2); }
+.t.ok { color: var(--success); }
+.t.w { color: var(--warn); }
+.t.e { color: var(--danger); }
+
+/* ══════════════════════════════════════════════════════
+   BOTTOM INFO BAR
+══════════════════════════════════════════════════════ */
+.infobar {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  font-size: 10px;
+  color: var(--dim);
+  letter-spacing: .1em;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  transition: border-color .3s;
+}
+.infobar span { display: flex; align-items: center; gap: 6px; }
+.ib-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--glow); flex-shrink: 0; }
+
+/* ══════════════════════════════════════════════════════
+   HIDDEN
+══════════════════════════════════════════════════════ */
+#cap-canvas { display: none; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── TOP BAR ── -->
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-tag">GESTURE//NET</div>
+      <div class="logo-sub">PRACTICAL 8 · TRANSFER LEARNING · MOBILENET V2</div>
+    </div>
+    <div class="topbar-right">
+      <div class="status-pill">
+        <div class="spulse" id="spulse"></div>
+        <span id="stext">INITIALIZING</span>
+      </div>
+      <button class="theme-btn" id="theme-btn">
+        <div class="tswitch" id="tswitch"></div>
+        <span id="tlabel">DARK</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── MAIN GRID ── -->
+  <div class="grid">
+
+    <!-- LEFT COL -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- Camera Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="ph-icon">📡</span> LIVE FEED
+          <div class="ph-line"></div>
+        </div>
+        <div class="cam-wrap">
+          <video id="video" autoplay muted playsinline></video>
+          <canvas id="overlay"></canvas>
+          <div class="scan-line"></div>
+          <div class="cbracket tl"></div>
+          <div class="cbracket tr"></div>
+          <div class="cbracket bl"></div>
+          <div class="cbracket br"></div>
+          <div class="cam-placeholder" id="campH">
+            <div class="big-icon">🖐️</div>
+            <span>CAMERA OFFLINE</span>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-g" id="btn-cam" disabled>▶ INIT CAM</button>
+          <button class="btn btn-b" id="btn-predict" disabled>⚡ CLASSIFY</button>
+          <button class="btn btn-r" id="btn-reset" disabled>✕ RESET</button>
+        </div>
+      </div>
+
+      <!-- Log Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="ph-icon">⌨</span> SYSTEM LOG
+          <div class="ph-line"></div>
+        </div>
+        <div class="term" id="log">
+          <div class="t i">> BOOTING GESTURE//NET...</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COL -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- Training Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="ph-icon">🧠</span> TRAINING MATRIX
+          <div class="ph-line"></div>
+        </div>
+
+        <div class="gesture-grid" id="gesture-grid">
+          <!-- built by JS -->
+        </div>
+
+        <div class="capture-row" style="margin-top:14px;">
+          <select class="g-select" id="g-select">
+            <!-- built by JS -->
+          </select>
+          <button class="btn btn-g" id="btn-add" disabled>+ CAPTURE</button>
+        </div>
+        <p style="font-size:10px;color:var(--dim);margin-top:10px;letter-spacing:.08em;">
+          AIM GESTURE AT CAMERA → SELECT CLASS → CAPTURE ×5 MIN → CLASSIFY
+        </p>
+      </div>
+
+      <!-- Prediction Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="ph-icon">🎯</span> PREDICTION OUTPUT
+          <div class="ph-line"></div>
+        </div>
+        <div id="pred-out">
+          <div class="pred-empty">
+            NO MODEL TRAINED<br/>
+            <span style="font-size:10px">ADD SAMPLES TO BEGIN CLASSIFICATION</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── BOTTOM INFO ── -->
+  <div class="infobar">
+    <span><div class="ib-dot"></div> MOBILENET V2 · IMAGENET WEIGHTS</span>
+    <span><div class="ib-dot" style="background:var(--glow2)"></div> KNN CLASSIFIER HEAD</span>
+    <span><div class="ib-dot" style="background:var(--glow3)"></div> TENSORFLOW.JS 4.17</span>
+    <span><div class="ib-dot" style="background:var(--warn)"></div> CDN INFERENCE · NO SERVER</span>
+  </div>
+
+</div>
+
+<canvas id="cap-canvas"></canvas>
+
+<script>
+// ─── GESTURE CLASSES ─────────────────────────────────
+const GESTURES = [
+  { name: 'Thumbs Up',   emoji: '👍', color: '#00ff88' },
+  { name: 'Peace',       emoji: '✌️', color: '#00ccff' },
+  { name: 'Fist',        emoji: '✊', color: '#ff4466' },
+  { name: 'Open Hand',   emoji: '🖐️', color: '#ffaa00' },
+  { name: 'Pointing',    emoji: '👆', color: '#cc88ff' },
+  { name: 'OK Sign',     emoji: '👌', color: '#ff8844' },
+];
+
+// ─── STATE ───────────────────────────────────────────
+let net = null, classifier = null, stream = null;
+let predicting = false;
+const counts = {};
+GESTURES.forEach(g => counts[g.name] = 0);
+
+// ─── DOM ─────────────────────────────────────────────
+const video    = document.getElementById('video');
+const overlay  = document.getElementById('overlay');
+const ctx      = overlay.getContext('2d');
+const logEl    = document.getElementById('log');
+const campH    = document.getElementById('campH');
+const btnCam   = document.getElementById('btn-cam');
+const btnPred  = document.getElementById('btn-predict');
+const btnReset = document.getElementById('btn-reset');
+const btnAdd   = document.getElementById('btn-add');
+const gSelect  = document.getElementById('g-select');
+const predOut  = document.getElementById('pred-out');
+const spulse   = document.getElementById('spulse');
+const stext    = document.getElementById('stext');
+const capCvs   = document.getElementById('cap-canvas');
+
+// ─── LOGGER ──────────────────────────────────────────
+function tlog(msg, type = '') {
+  const d = document.createElement('div');
+  d.className = 't ' + type;
+  const ts = new Date().toLocaleTimeString('en',{hour12:false});
+  d.textContent = `[${ts}] ${msg}`;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setStatus(msg, st = 'loading') {
+  stext.textContent = msg;
+  spulse.className = 'spulse' + (st === 'ok' ? ' on' : st === 'err' ? ' err' : '');
+}
+
+// ─── BUILD UI ────────────────────────────────────────
+function buildGrid() {
+  const grid = document.getElementById('gesture-grid');
+  grid.innerHTML = '';
+  GESTURES.forEach(g => {
+    const card = document.createElement('div');
+    card.className = 'g-card';
+    card.id = `gc-${g.name}`;
+    card.innerHTML = `
+      <div class="g-emoji">${g.emoji}</div>
+      <div class="g-info">
+        <div class="g-name">${g.name}</div>
+        <div class="g-bar-track">
+          <div class="g-bar-fill" id="bar-${g.name}" style="width:0%;background:${g.color}"></div>
+        </div>
+      </div>
+      <div class="g-count" id="cnt-${g.name}">0</div>
+    `;
+    grid.appendChild(card);
+
+    const opt = document.createElement('option');
+    opt.value = g.name;
+    opt.textContent = `${g.emoji}  ${g.name}`;
+    gSelect.appendChild(opt);
+  });
+}
+
+function updateCounts() {
+  GESTURES.forEach(g => {
+    const cnt = counts[g.name];
+    const el = document.getElementById(`cnt-${g.name}`);
+    const bar = document.getElementById(`bar-${g.name}`);
+    if (el) el.textContent = cnt;
+    if (bar) bar.style.width = `${Math.min(100, (cnt / 15) * 100)}%`;
+  });
+}
+
+// ─── LOAD MODEL ──────────────────────────────────────
+async function loadModel() {
+  try {
+    tlog('Loading MobileNet v2 weights from CDN...', 'i');
+    setStatus('LOADING MODEL');
+    net = await mobilenet.load({ version: 2, alpha: 1.0 });
+    classifier = knnClassifier.create();
+    tlog('MobileNet ready. KNN classifier initialized.', 'ok');
+    setStatus('READY', 'ok');
+    btnCam.disabled = false;
+  } catch (e) {
+    tlog('ERROR: ' + e.message, 'e');
+    setStatus('MODEL FAILED', 'err');
+  }
+}
+
+// ─── CAMERA ──────────────────────────────────────────
+btnCam.addEventListener('click', async () => {
+  if (stream) { stopCam(); return; }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    video.srcObject = stream;
+    await new Promise(r => video.onloadedmetadata = r);
+    await video.play();
+    overlay.width  = video.videoWidth;
+    overlay.height = video.videoHeight;
+    campH.style.display = 'none';
+    btnCam.textContent = '■ STOP CAM';
+    btnCam.className = 'btn btn-r';
+    btnAdd.disabled = false;
+    btnReset.disabled = false;
+    tlog('Camera online.', 'ok');
+    setStatus('CAM ACTIVE', 'ok');
+  } catch(e) {
+    tlog('Cam error: ' + e.message, 'e');
+    setStatus('CAM DENIED', 'err');
+  }
+});
+
+function stopCam() {
+  if (predicting) togglePredict();
+  stream?.getTracks().forEach(t => t.stop());
+  stream = null;
+  video.srcObject = null;
+  campH.style.display = 'flex';
+  btnCam.textContent = '▶ INIT CAM';
+  btnCam.className = 'btn btn-g';
+  btnAdd.disabled = true;
+  btnPred.disabled = true;
+  tlog('Camera offline.', 'w');
+  setStatus('CAM STOPPED');
+}
+
+// ─── CAPTURE SAMPLE ──────────────────────────────────
+btnAdd.addEventListener('click', async () => {
+  if (!net || !stream) return;
+  const cls = gSelect.value;
+
+  capCvs.width  = video.videoWidth;
+  capCvs.height = video.videoHeight;
+  capCvs.getContext('2d').drawImage(video, 0, 0);
+
+  flashFrame(GESTURES.find(g => g.name === cls)?.color || '#00ff88');
+
+  const img  = tf.browser.fromPixels(capCvs);
+  const emb  = net.infer(img, true);
+  classifier.addExample(emb, cls);
+  img.dispose(); emb.dispose();
+
+  counts[cls]++;
+  updateCounts();
+  tlog(`Captured "${cls}" [${counts[cls]}]`, 'ok');
+
+  const trained = GESTURES.filter(g => counts[g.name] > 0).length;
+  if (trained >= 1) btnPred.disabled = false;
+});
+
+function flashFrame(color) {
+  ctx.fillStyle = color + '55';
+  ctx.fillRect(0, 0, overlay.width, overlay.height);
+  setTimeout(() => ctx.clearRect(0, 0, overlay.width, overlay.height), 120);
+}
+
+// ─── PREDICT LOOP ────────────────────────────────────
+btnPred.addEventListener('click', togglePredict);
+
+function togglePredict() {
+  predicting = !predicting;
+  if (predicting) {
+    btnPred.textContent = '⏹ STOP';
+    btnPred.className = 'btn btn-r';
+    tlog('Classification active.', 'i');
+    loop();
+  } else {
+    btnPred.textContent = '⚡ CLASSIFY';
+    btnPred.className = 'btn btn-b';
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    tlog('Classification paused.', 'w');
+  }
+}
+
+async function loop() {
+  if (!predicting) return;
+  if (!stream || classifier.getNumClasses() === 0) { setTimeout(loop, 200); return; }
+
+  capCvs.width  = video.videoWidth;
+  capCvs.height = video.videoHeight;
+  capCvs.getContext('2d').drawImage(video, 0, 0);
+
+  const img = tf.browser.fromPixels(capCvs);
+  const emb = net.infer(img, true);
+  const res = await classifier.predictClass(emb);
+  img.dispose(); emb.dispose();
+
+  renderPred(res);
+  drawHUD(res);
+  setTimeout(loop, 200);
+}
+
+// ─── RENDER PREDICTION ───────────────────────────────
+function renderPred(res) {
+  const lbl  = res.label;
+  const probs = res.confidences;
+  const conf  = (probs[lbl] * 100).toFixed(1);
+  const g     = GESTURES.find(x => x.name === lbl) || {};
+  const color = g.color || '#00ff88';
+
+  const sorted = Object.entries(probs).sort((a,b)=>b[1]-a[1]);
+
+  let probRows = '';
+  sorted.forEach(([cls, p]) => {
+    const gd = GESTURES.find(x => x.name === cls);
+    const pct = (p * 100).toFixed(1);
+    const col = gd?.color || '#64748b';
+    probRows += `
+      <div class="prob-item">
+        <div class="prob-emoji">${gd?.emoji||'?'}</div>
+        <div class="prob-track"><div class="prob-fill" style="width:${pct}%;background:${col}"></div></div>
+        <div class="prob-pct">${pct}%</div>
+      </div>`;
+  });
+
+  predOut.innerHTML = `
+    <div class="pred-result">
+      <div class="pred-emoji-big">${g.emoji||'?'}</div>
+      <div class="pred-name" style="color:${color}">${lbl}</div>
+      <div class="pred-conf-text">CONFIDENCE: ${conf}%</div>
+      <div class="conf-bar-wrap">
+        <div class="conf-bar-fill" style="width:${conf}%;background:${color}"></div>
+      </div>
+    </div>
+    <div class="prob-list">${probRows}</div>
+  `;
+}
+
+function drawHUD(res) {
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  const lbl  = res.label;
+  const conf  = (res.confidences[lbl] * 100).toFixed(1);
+  const g     = GESTURES.find(x => x.name === lbl);
+  const color = g?.color || '#00ff88';
+
+  ctx.fillStyle = 'rgba(0,0,0,.55)';
+  ctx.fillRect(6, 6, 210, 38);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(6, 6, 210, 38);
+
+  ctx.fillStyle = color;
+  ctx.font = 'bold 13px Share Tech Mono, monospace';
+  ctx.fillText(`${g?.emoji||''} ${lbl}  ${conf}%`, 14, 30);
+}
+
+// ─── RESET ───────────────────────────────────────────
+btnReset.addEventListener('click', () => {
+  if (predicting) togglePredict();
+  classifier.clearAllClasses();
+  GESTURES.forEach(g => counts[g.name] = 0);
+  updateCounts();
+  predOut.innerHTML = `<div class="pred-empty">MODEL CLEARED<br/><span style="font-size:10px">RECAPTURE SAMPLES TO RESTART</span></div>`;
+  btnPred.disabled = true;
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  tlog('All samples cleared. Model reset.', 'w');
+  setStatus('READY', 'ok');
+});
+
+// ─── THEME TOGGLE ────────────────────────────────────
+const themeBtn = document.getElementById('theme-btn');
+const tlabel   = document.getElementById('tlabel');
+let isLight = localStorage.getItem('g-theme') === 'light';
+
+function applyTheme() {
+  document.documentElement.classList.toggle('light', isLight);
+  tlabel.textContent = isLight ? 'LIGHT' : 'DARK';
+}
+
+themeBtn.addEventListener('click', () => {
+  isLight = !isLight;
+  applyTheme();
+  localStorage.setItem('g-theme', isLight ? 'light' : 'dark');
+});
+
+applyTheme();
+
+// ─── INIT ────────────────────────────────────────────
+buildGrid();
+updateCounts();
+window.addEventListener('load', loadModel);
+</script>
+</body>
+</html>
